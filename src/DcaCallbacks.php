@@ -30,6 +30,33 @@ class DcaCallbacks extends \Contao\Backend
         return '<a href="' . $this->addToUrl($href) . '" title="' . \Contao\StringUtil::specialchars($title) . '" data-tid="cid"' . $attributes . '>' . \Contao\Image::getHtml($icon, $label, '') . '</a> ';
     }
 
+    private function addRsceRecursive($data, $table, $list) {
+        if (is_array($data)) {
+            foreach ($data as $key => $value) {
+                if (is_array($value)) {
+                    $this->addRsceRecursive($value, $table, $list);
+                } else {
+                    if ($key == 'background' || $key == 'image') {
+                        if (\Contao\Validator::isUuid($value)) {
+                            // Handle UUIDs
+                            $objFiles = \Contao\FilesModel::findByUuid($value);
+                        } elseif (is_numeric($value)) {
+                            $objFiles = \Contao\FilesModel::findByPk($value);
+                        }
+                        if ($objFiles !== null) {
+                            if (file_exists(\Contao\System::getContainer()->getParameter('kernel.project_dir') . '/' . $objFiles->path)) {
+                                self::$filesCache[$objFiles->path][] = (object)[
+                                    'table' => $table,
+                                    'id' => $list->id
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     protected function buildUsageCache() {
         if (self::$filesCache === false) {
             self::$filesCache = [];
@@ -257,25 +284,7 @@ class DcaCallbacks extends \Contao\Backend
                                 while ($list->next()) {
                                     $text = (!isset($GLOBALS['TL_CONFIG']['fileusageSkipReplaceInsertTags']) || !$GLOBALS['TL_CONFIG']['fileusageSkipReplaceInsertTags']) ? \Contao\Controller::replaceInsertTags($list->$field) : $list->$field;
                                     $settingsitems = json_decode($text, true);
-                                    if (!is_array($settingsitems)) continue;
-                                    foreach ($settingsitems as $key => $value) {
-                                        if ($key == 'background' || $key == 'image') {
-                                            if (\Contao\Validator::isUuid($value)) {
-                                                // Handle UUIDs
-                                                $objFiles = \Contao\FilesModel::findByUuid($value);
-                                            } elseif (is_numeric($value)) {
-                                                $objFiles = \Contao\FilesModel::findByPk($value);
-                                            }
-                                            if ($objFiles !== null) {
-                                                if (file_exists(\Contao\System::getContainer()->getParameter('kernel.project_dir') . '/' . $objFiles->path)) {
-                                                    self::$filesCache[$objFiles->path][] = (object)[
-                                                        'table' => $table,
-                                                        'id' => $list->id
-                                                    ];
-                                                }
-                                            }
-                                        }
-                                    }
+                                    $this->addRsceRecursive($settingsitems, $table, $list);
                                     
                                 }
                                 break;
