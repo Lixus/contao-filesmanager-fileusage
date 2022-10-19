@@ -252,6 +252,33 @@ class DcaCallbacks extends \Contao\Backend
                                     }
                                 }
                                 break;
+                            case 'rsce_data':
+                                $list = $db->execute("SELECT `id`, `$field` FROM `$table`");
+                                while ($list->next()) {
+                                    $text = (!isset($GLOBALS['TL_CONFIG']['fileusageSkipReplaceInsertTags']) || !$GLOBALS['TL_CONFIG']['fileusageSkipReplaceInsertTags']) ? \Contao\Controller::replaceInsertTags($list->$field) : $list->$field;
+                                    $settingsitems = json_decode($text, true);
+                                    if (!is_array($settingsitems)) continue;
+                                    foreach ($settingsitems as $key => $value) {
+                                        if ($key == 'background' || $key == 'image') {
+                                            if (\Contao\Validator::isUuid($value)) {
+                                                // Handle UUIDs
+                                                $objFiles = \Contao\FilesModel::findByUuid($value);
+                                            } elseif (is_numeric($value)) {
+                                                $objFiles = \Contao\FilesModel::findByPk($value);
+                                            }
+                                            if ($objFiles !== null) {
+                                                if (file_exists(\Contao\System::getContainer()->getParameter('kernel.project_dir') . '/' . $objFiles->path)) {
+                                                    self::$filesCache[$objFiles->path][] = (object)[
+                                                        'table' => $table,
+                                                        'id' => $list->id
+                                                    ];
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                }
+                                break;
                         }
                     }
                 }
